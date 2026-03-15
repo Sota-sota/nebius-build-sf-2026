@@ -9,9 +9,18 @@ dependencies = [
     "numpy>=2.4.3",
     "openai>=2.28.0",
     "pydantic>=2.12.5",
+    "pytest",
+    "pytest-asyncio",
     "python-dotenv>=1.2.2",
     "scservo-sdk",
     "tavily-python>=0.7.23",
     "uvicorn[standard]>=0.41.0",
     "websockets>=16.0",
+    "httpx>=0.28.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+markers = [
+    "integration: marks tests requiring real HTTP (run with pytest -m integration)",
 ]

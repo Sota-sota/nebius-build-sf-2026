@@ -93,7 +93,10 @@ Voice
 ### 統合テスト
 
 - [x] DummyExecutorでSmolVLAパスの全経路を確認
-- [ ] SmolVLAサーバーへの実疎通確認 (curl /predict)
+- [x] `scripts/dummy_smolvla_server.py` 作成 (Track 1 VM なし HTTP 疎通)
+- [x] `tests/test_smolvla_integration.py` 作成 (8テスト、real TCP通信) — `pytest -m integration` でパス
+- [x] Dummy サーバー経由で全 HTTP パス確認 (SmolVLAClient → chunk → pipeline)
+- [ ] SmolVLAサーバーへの実疎通確認 (curl /predict) ← Track 1 VM 起動後
 - [ ] SO101実機でaction chunk実行確認
 - [ ] **"pick up the red cup" エンドツーエンド (SmolVLAパス) 確認**
 
