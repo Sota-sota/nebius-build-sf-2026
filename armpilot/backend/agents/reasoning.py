@@ -4,6 +4,7 @@ from openai import OpenAI
 from config import NEBIUS_API_KEY, NEBIUS_MODEL
 from models.action import ActionPlan
 from tools.tavily_search import TavilySearchTool
+from tools.toloka_homer import get_homer_context
 
 SYSTEM_PROMPT = """You are ArmPilot controlling a 6-DOF SO101 robotic arm.
 Positions: far-left, center-left, center, center-right, far-right, above.
@@ -30,11 +31,20 @@ class ReasoningAgent:
         objects = [o["name"] for o in scene.get("objects", [])]
         context = await self.tavily.search_for_command(objects, command, broadcast_fn)
 
+        # Enrich with Toloka HomER egocentric demonstrations
+        homer_context = await get_homer_context(command, objects)
+        if homer_context:
+            await broadcast_fn({
+                "type": "homer_result",
+                "data": {"demos": homer_context, "source": "toloka/HomER"},
+            })
+
         await broadcast_fn({
             "type": "reasoning_step",
             "data": {"step": "planning", "detail": "Generating action plan with Nebius LLM..."},
         })
-        user_msg = f"Command: {command}\nScene: {json.dumps(scene)}\nWeb knowledge:\n{context}"
+        homer_section = f"\nEgocentric demos (Toloka HomER):\n{homer_context}" if homer_context else ""
+        user_msg = f"Command: {command}\nScene: {json.dumps(scene)}\nWeb knowledge:\n{context}{homer_section}"
 
         response = await asyncio.to_thread(
             lambda: self.client.chat.completions.create(

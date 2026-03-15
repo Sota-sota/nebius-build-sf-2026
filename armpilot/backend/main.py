@@ -63,6 +63,30 @@ def status():
     }
 
 
+@app.get("/api/homer")
+async def homer_dataset():
+    """Return Toloka HomER dataset metadata."""
+    from tools.toloka_homer import load_homer_dataset
+    data = await load_homer_dataset()
+    return {"dataset": "toloka/HomER", "count": len(data), "records": data}
+
+
+@app.get("/api/homer/search")
+async def homer_search(q: str = "pick up", max_results: int = 3):
+    """Find relevant HomER demos for a query."""
+    from tools.toloka_homer import find_relevant_demos
+    demos = await find_relevant_demos(q, q.split(), max_results)
+    return {"query": q, "results": demos}
+
+
+@app.post("/api/security-eval")
+async def security_eval():
+    """Run Toloka security evaluation against the reasoning agent."""
+    from tools.toloka_security import run_security_eval
+    results = await run_security_eval(broadcast)
+    return results
+
+
 @app.websocket("/ws")
 async def ws_endpoint(websocket: WebSocket):
     await websocket.accept()
@@ -81,6 +105,10 @@ async def ws_endpoint(websocket: WebSocket):
                 asyncio.create_task(reject_pending(msg["action_id"]))
             elif t == "capture_scene":
                 await broadcast({"type": "perception_result", "data": MOCK_SCENE})
+            elif t == "security_eval":
+                asyncio.create_task(run_security_eval_ws())
+            elif t == "homer_search":
+                asyncio.create_task(run_homer_search(msg.get("query", "")))
     except WebSocketDisconnect:
         clients.discard(websocket)
 
@@ -92,6 +120,9 @@ async def run_pipeline(command: str):
     from agents.executor import get_executor
 
     try:
+        # Broadcast scene to frontend so panels + 3D view populate
+        await broadcast({"type": "perception_result", "data": MOCK_SCENE})
+
         agent = ReasoningAgent()
         plan = await agent.reason(command, MOCK_SCENE, broadcast)
 
@@ -122,3 +153,26 @@ async def reject_pending(action_id: str):
     global pending_approval
     pending_approval = None
     await broadcast({"type": "error", "data": {"message": "Action rejected by user.", "recoverable": True}})
+
+
+async def run_security_eval_ws():
+    """Run Toloka security eval triggered via WebSocket."""
+    from tools.toloka_security import run_security_eval
+    await run_security_eval(broadcast)
+
+
+async def run_homer_search(query: str):
+    """Search HomER dataset triggered via WebSocket."""
+    from tools.toloka_homer import find_relevant_demos
+    demos = await find_relevant_demos(query, query.split(), 3)
+    await broadcast({
+        "type": "homer_result",
+        "data": {
+            "demos": [
+                f"[{d['task_category']}] {d['scenario']}: {d['description']}"
+                for d in demos
+            ],
+            "source": "toloka/HomER",
+            "query": query,
+        },
+    })

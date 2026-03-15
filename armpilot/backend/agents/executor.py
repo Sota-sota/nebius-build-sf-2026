@@ -53,7 +53,7 @@ class ArmExecutor:
                 "data": {
                     "current_step": done,
                     "total_steps": total,
-                    "joint_positions": self.current[:5],
+                    "joint_positions": self.current,
                     "gripper_state": "closed" if self.current[5] > 0.1 else "open",
                     "status": "executing",
                 },
@@ -63,7 +63,7 @@ class ArmExecutor:
             "data": {
                 "current_step": total,
                 "total_steps": total,
-                "joint_positions": self.current[:5],
+                "joint_positions": self.current,
                 "gripper_state": "open",
                 "status": "completed",
             },
@@ -98,14 +98,20 @@ class DummyExecutor:
                 "data": {
                     "current_step": i + 1,
                     "total_steps": total,
-                    "joint_positions": wp[:5],
+                    "joint_positions": wp,
                     "gripper_state": "closed" if wp[5] > 0.1 else "open",
                     "status": "executing",
                 },
             })
         await broadcast_fn({
             "type": "execution_update",
-            "data": {"current_step": total, "total_steps": total, "status": "completed"},
+            "data": {
+                "current_step": total,
+                "total_steps": total,
+                "joint_positions": self.current,
+                "gripper_state": "open",
+                "status": "completed",
+            },
         })
 
 
