@@ -58,11 +58,12 @@ Voice
 
 ### Track 1: Nebius GPU サーバー（最優先・ボトルネック）
 
-- [x] `nebius_server/smolvla_server.py` を作成
+- [x] `nebius_server/smolvla_server.py` を作成 (16テスト GREEN)
   - `POST /predict` (instruction + joint_state + image_b64 → action chunk [10×6])
   - `GET /health`
   - `smolvla_svla_so101_pickplace` を CUDA でロード
   - action chunk を `JOINT_LIMITS` でclamp（必須 — 未実施だとアーム暴走）
+- [x] `nebius_server/test_smolvla_server.py` を作成 (16/16 passed)
 - [x] `nebius_server/requirements.txt` を作成
 - [x] `nebius_server/deploy.sh` を作成 (scp + nohup起動)
 - [ ] Nebius Compute Cloud VM を起動
