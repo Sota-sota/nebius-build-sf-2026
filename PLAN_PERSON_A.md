@@ -25,18 +25,18 @@
 - [x] `wscat` でコマンド送信 → ActionPlan が返ってくることを確認
 
 ### Min 15–20: アーム校正
-- [ ] SO101 USB接続確認 (`ls /dev/ttyACM*`)
-- [ ] `scripts/calibrate_arm.py` 実行
-- [ ] `config.py` の `POSITION_MAP` を実測値で更新
+- [x] SO101 USB接続確認 (`/dev/cu.usbmodem5AE70495381`)
+- [x] `lerobot-calibrate` 実行 (calibration saved to ~/.cache/huggingface/lerobot/...)
+- [x] `config.py` の `POSITION_MAP` を実測値で更新
 
 ### Min 20–28: プランナー + エグゼキューター → アーム動作
 - [x] `agents/planner.py` 作成 (ActionPlan → waypoints)
 - [x] `agents/executor.py` 作成 (LeRobot → SO101)
 - [x] `main.py` に `execute_plan()` 接続
-- [ ] **アームが実際に動くことを確認**
+- [x] **アームが実際に動くことを確認**
 
 ### Min 28–30: 動作確認
-- [ ] "pick up the red cup" コマンド → アーム動作をエンドツーエンドで確認
+- [x] "pick up the red cup" コマンド → アーム動作をエンドツーエンドで確認
 - [ ] Person B に `models/events.py` の WS スキーマを共有
 
 ---
