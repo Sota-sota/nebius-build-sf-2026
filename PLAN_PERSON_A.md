@@ -1,43 +1,114 @@
-# ArmPilot — 30分スプリント (ロボット接続まで)
-
-**ゴール**: コマンド送信 → Nebius推論 → SO101アームが動く、をこの30分で完成させる。
-カメラ・フロントエンドは後回し。まずアームを動かす。
+# ArmPilot — Person A タスク
 
 ---
 
-## チェックリスト (30分)
+## Phase 1: ベースパイプライン ✅ 完了
 
-### Min 0–5: 環境セットアップ
+**ゴール**: コマンド送信 → Nebius推論 → SO101アームが動く
+
 - [x] ディレクトリ作成 + パッケージインストール
 - [x] `.env` 作成 (APIキー記入)
 - [x] `config.py` 作成
 - [x] Nebius API 疎通確認 (`scripts/test_nebius.py`)
 - [x] Tavily API 疎通確認 (`scripts/test_tavily.py`)
-
-### Min 5–10: FastAPI + WebSocket
 - [x] `main.py` 作成 (FastAPI + `/ws` + `broadcast()`)
 - [x] `uvicorn` 起動確認
-
-### Min 10–15: 推論 + Tavily
 - [x] `models/action.py` 作成 (ActionStep, ActionPlan)
 - [x] `tools/tavily_search.py` 作成
 - [x] `agents/reasoning.py` 作成
 - [x] `wscat` でコマンド送信 → ActionPlan が返ってくることを確認
-
-### Min 15–20: アーム校正
 - [x] SO101 USB接続確認 (`/dev/cu.usbmodem5AE70495381`)
-- [x] `lerobot-calibrate` 実行 (calibration saved to ~/.cache/huggingface/lerobot/...)
+- [x] `lerobot-calibrate` 実行
 - [x] `config.py` の `POSITION_MAP` を実測値で更新
-
-### Min 20–28: プランナー + エグゼキューター → アーム動作
 - [x] `agents/planner.py` 作成 (ActionPlan → waypoints)
 - [x] `agents/executor.py` 作成 (LeRobot → SO101)
 - [x] `main.py` に `execute_plan()` 接続
-- [x] **アームが実際に動くことを確認**
-
-### Min 28–30: 動作確認
 - [x] "pick up the red cup" コマンド → アーム動作をエンドツーエンドで確認
 - [ ] Person B に `models/events.py` の WS スキーマを共有
+
+---
+
+## Phase 2: SmolVLA on Nebius GPU — VLA統合
+
+**ゴール**: POSITION_MAPルックアップをSmolVLA推論に置き換える
+
+### アーキテクチャ
+```
+Voice
+  → Nebius Token Factory LLM (reasoning.py) [変更なし]
+  → ActionPlan → actions_to_instruction()
+                  "pick up the red cup gently"
+  → SmolVLAClient
+      ├── カメラフレーム (256x256 JPEG → base64)
+      └── current joint state (6値)
+          ↓ HTTP POST /predict
+  → Nebius GPU VM
+      smolvla_svla_so101_pickplace (FastAPI)
+          ↓ action chunk [10 × 6 joint angles]
+  → ArmExecutor → SO101 [変更なし]
+```
+
+### 採用モデル
+`lerobot-edinburgh-white-team/smolvla_svla_so101_pickplace`
+- SO101 + pick-and-place でfine-tune済み
+- 入力: 2カメラ + 6軸joint state + テキスト命令
+- 出力: 6軸 action chunk × 10ステップ
+
+---
+
+### Track 1: Nebius GPU サーバー（最優先・ボトルネック）
+
+- [x] `nebius_server/smolvla_server.py` を作成
+  - `POST /predict` (instruction + joint_state + image_b64 → action chunk [10×6])
+  - `GET /health`
+  - `smolvla_svla_so101_pickplace` を CUDA でロード
+  - action chunk を `JOINT_LIMITS` でclamp（必須 — 未実施だとアーム暴走）
+- [x] `nebius_server/requirements.txt` を作成
+- [x] `nebius_server/deploy.sh` を作成 (scp + nohup起動)
+- [ ] Nebius Compute Cloud VM を起動
+  - OS: Ubuntu 22.04 + CUDA 12.x
+  - GPU: L4 (24GB VRAM) × 1
+- [ ] VM に SSH接続 → `smolvla_server.py` をデプロイ
+  - `~/.cache/huggingface` をローカルから `scp` でコピー（ダウンロード時間短縮）
+- [ ] `GET /health` で疎通確認 → `SMOLVLA_ENDPOINT_URL` を `.env` に記入
+- [ ] `POST /predict` でサンプル入力 → action chunk が返ることを確認
+
+### Track 2: ローカルバックエンド変更
+
+- [x] `backend/config.py` に追記
+  - `SMOLVLA_ENDPOINT_URL`, `SMOLVLA_TIMEOUT_S`, `USE_SMOLVLA`
+- [x] `backend/agents/planner.py` に `actions_to_instruction(plan)` を追加
+  - ActionPlan.actions → 自然言語instruction text に変換する純粋関数
+- [x] `backend/agents/smolvla_client.py` を新規作成
+  - `SmolVLAClient.predict(instruction, joint_state, image_b64) → list[list[float]]`
+  - httpx 非同期 POST、タイムアウト10秒
+  - カメラキャプチャ (OpenCV, 256×256 JPEG → base64) を内包
+  - 失敗・タイムアウト時は `None` を返す（フォールバック用）
+  - action chunk を `JOINT_LIMITS` でclamp
+- [x] `backend/main.py` の `run_pipeline()` を変更
+  - `USE_SMOLVLA=True` かつ SmolVLA成功 → action chunk をそのままexecutorへ
+  - SmolVLA失敗・未設定 → 既存の `ActionPlanner().plan_to_waypoints(plan)` にフォールバック
+
+### 統合テスト
+
+- [x] DummyExecutorでSmolVLAパスの全経路を確認
+- [ ] SmolVLAサーバーへの実疎通確認 (curl /predict)
+- [ ] SO101実機でaction chunk実行確認
+- [ ] **"pick up the red cup" エンドツーエンド (SmolVLAパス) 確認**
+
+---
+
+## フォールバック
+
+| 問題 | 即時対処 |
+|------|----------|
+| SmolVLAサーバー未起動 | `USE_SMOLVLA` が自動 False → POSITION_MAPで継続 |
+| action chunkの値が異常 | `JOINT_LIMITS` clampが効いているか確認 |
+| Nebius VM起動に時間がかかる | Track 2先行、Track 1後追いでOK |
+| smolvla_svla_so101_pickplace ロード失敗 | `lerobot/smolvla_base` にフォールバック |
+| カメラ未接続 | `image_b64=None` → SmolVLAをスキップして POSITION_MAP使用 |
+| Nebius API エラー | `scripts/test_nebius.py` でキー確認 |
+| Tavily タイムアウト | `tools/tavily_search.py` のタイムアウトを 10s に延ばす |
 
 ---
 

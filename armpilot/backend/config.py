@@ -33,3 +33,8 @@ JOINT_LIMITS = {
     "min": [-2.0, -2.0, -2.0, -2.0, -2.0, 0.0],
     "max": [ 2.0,  2.0,  2.0,  2.0,  2.0, 1.0],
 }
+
+# SmolVLA (Track 2)
+SMOLVLA_ENDPOINT_URL = os.getenv("SMOLVLA_ENDPOINT_URL", "")
+SMOLVLA_TIMEOUT_S    = float(os.getenv("SMOLVLA_TIMEOUT_S", "10"))
+USE_SMOLVLA          = os.getenv("USE_SMOLVLA", "false").lower() == "true"
