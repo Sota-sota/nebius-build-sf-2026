@@ -1,24 +1,28 @@
 """
-WebSocket event schemas — Person B と共有するコントラクト
+WebSocket event schemas — all event types flowing between server and client.
 
 Server → Client:
-  camera_frame       : カメラ映像 (2FPS)
-  perception_result  : VLM解析結果
-  reasoning_step     : 推論の各ステップ
-  tavily_result      : Tavily検索結果
-  action_plan        : 生成されたアクションプラン
-  execution_update   : アーム動作の進捗
-  error              : エラー通知
+  camera_frame       : Raw camera frames (~2 FPS)
+  perception_result  : VLM scene analysis
+  reasoning_step     : Agent reasoning progress
+  tavily_result      : Tavily search results
+  action_plan        : Generated action plan
+  execution_update   : Arm movement progress
+  homer_result       : Toloka HomER demo matches
+  security_eval      : Toloka security eval progress/results
+  error              : Error notifications
 
 Client → Server:
-  command            : ユーザーコマンド
-  approve            : アクション承認
-  reject             : アクション拒否
-  capture_scene      : 知覚トリガー
+  command            : User voice/text command
+  approve            : Approve pending action
+  reject             : Reject pending action
+  capture_scene      : Trigger manual perception
+  security_eval      : Trigger security eval
+  homer_search       : Search HomER demos
 """
 
 from pydantic import BaseModel
-from typing import Literal, Any
+from typing import Literal
 
 
 # ── Client → Server ──────────────────────────────────────
@@ -38,6 +42,13 @@ class RejectEvent(BaseModel):
 class CaptureSceneEvent(BaseModel):
     type: Literal["capture_scene"]
 
+class SecurityEvalTriggerEvent(BaseModel):
+    type: Literal["security_eval"]
+
+class HomerSearchEvent(BaseModel):
+    type: Literal["homer_search"]
+    query: str
+
 
 # ── Server → Client ──────────────────────────────────────
 
@@ -48,7 +59,7 @@ class CameraFrameEvent(BaseModel):
 
 class PerceptionResultEvent(BaseModel):
     type: Literal["perception_result"]
-    data: dict  # SceneDescription
+    data: dict  # SceneDescription.model_dump()
     timestamp: str
     latency_ms: int = 0
 
@@ -56,13 +67,12 @@ class ReasoningStepEvent(BaseModel):
     type: Literal["reasoning_step"]
     data: dict  # {step: str, detail: str, tavily_query?: str}
     timestamp: str
-
     # step values:
-    # "connected" | "searching" | "planning" | "awaiting_approval" | "executing"
+    # "connected" | "perceiving" | "searching" | "planning" | "awaiting_approval" | "executing" | "completed"
 
 class TavilyResultEvent(BaseModel):
     type: Literal["tavily_result"]
-    data: dict  # {query: str, results: [{title, content, url}]}
+    data: dict  # {query: str, results: [{title, content, url, score}]}
     timestamp: str
 
 class ActionPlanEvent(BaseModel):
@@ -74,8 +84,17 @@ class ExecutionUpdateEvent(BaseModel):
     type: Literal["execution_update"]
     data: dict  # {current_step, total_steps, joint_positions, gripper_state, status}
     timestamp: str
-
     # status values: "executing" | "completed" | "failed"
+
+class HomerResultEvent(BaseModel):
+    type: Literal["homer_result"]
+    data: dict  # {demos: str|list, source: str, query?: str}
+    timestamp: str
+
+class SecurityEvalEvent(BaseModel):
+    type: Literal["security_eval"]
+    data: dict  # {status, total, completed, passed?, failed?, score?, results?, message}
+    timestamp: str
 
 class ErrorEvent(BaseModel):
     type: Literal["error"]

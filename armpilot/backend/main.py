@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI()
+app = FastAPI(title="ArmPilot", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -15,8 +15,10 @@ app.add_middleware(
 
 clients: set[WebSocket] = set()
 pending_approval = None
+perception_agent = None
+camera_task = None
 
-# ハードコードシーン (知覚パイプラインは後で追加)
+# Fallback scene when camera is unavailable
 MOCK_SCENE = {
     "objects": [
         {
@@ -46,6 +48,34 @@ async def broadcast(event: dict):
             clients.discard(ws)
 
 
+# ── Lifecycle ────────────────────────────────────────────
+
+@app.on_event("startup")
+async def startup():
+    global perception_agent, camera_task
+    from agents.perception import PerceptionAgent
+    perception_agent = PerceptionAgent()
+
+    # Start camera streaming if camera is available
+    if perception_agent.has_camera:
+        camera_task = asyncio.create_task(perception_agent.stream_camera(broadcast))
+        print("[Startup] Camera streaming started")
+    else:
+        print("[Startup] No camera detected — using mock scene data")
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    global camera_task
+    if perception_agent:
+        perception_agent.stop_stream()
+        perception_agent.release()
+    if camera_task:
+        camera_task.cancel()
+
+
+# ── REST Endpoints ───────────────────────────────────────
+
 @app.get("/")
 def health():
     return {"status": "ok"}
@@ -57,7 +87,7 @@ def status():
     from config import ARM_PORT
     return {
         "arm_connected": os.path.exists(ARM_PORT),
-        "camera_ready": False,
+        "camera_ready": perception_agent.has_camera if perception_agent else False,
         "apis_ready": True,
         "clients": len(clients),
     }
@@ -80,18 +110,23 @@ async def homer_search(q: str = "pick up", max_results: int = 3):
 
 
 @app.post("/api/security-eval")
-async def security_eval():
+async def security_eval_endpoint():
     """Run Toloka security evaluation against the reasoning agent."""
     from tools.toloka_security import run_security_eval
     results = await run_security_eval(broadcast)
     return results
 
 
+# ── WebSocket ────────────────────────────────────────────
+
 @app.websocket("/ws")
 async def ws_endpoint(websocket: WebSocket):
     await websocket.accept()
     clients.add(websocket)
-    await broadcast({"type": "reasoning_step", "data": {"step": "connected", "detail": "Client connected"}})
+    await broadcast({
+        "type": "reasoning_step",
+        "data": {"step": "connected", "detail": "Client connected"},
+    })
     try:
         while True:
             data = await websocket.receive_text()
@@ -104,13 +139,31 @@ async def ws_endpoint(websocket: WebSocket):
             elif t == "reject":
                 asyncio.create_task(reject_pending(msg["action_id"]))
             elif t == "capture_scene":
-                await broadcast({"type": "perception_result", "data": MOCK_SCENE})
+                asyncio.create_task(capture_scene())
             elif t == "security_eval":
                 asyncio.create_task(run_security_eval_ws())
             elif t == "homer_search":
                 asyncio.create_task(run_homer_search(msg.get("query", "")))
     except WebSocketDisconnect:
         clients.discard(websocket)
+
+
+# ── Pipeline ─────────────────────────────────────────────
+
+async def get_scene() -> dict:
+    """Get the current scene — from perception agent if camera available, else mock."""
+    if perception_agent and perception_agent.has_camera:
+        scene = await perception_agent.capture_and_analyze(broadcast)
+        if scene:
+            return scene.model_dump(mode="json")
+    # Broadcast mock scene so frontend still populates
+    await broadcast({"type": "perception_result", "data": MOCK_SCENE})
+    return MOCK_SCENE
+
+
+async def capture_scene():
+    """Manual scene capture triggered by frontend."""
+    await get_scene()
 
 
 async def run_pipeline(command: str):
@@ -120,12 +173,14 @@ async def run_pipeline(command: str):
     from agents.executor import get_executor
 
     try:
-        # Broadcast scene to frontend so panels + 3D view populate
-        await broadcast({"type": "perception_result", "data": MOCK_SCENE})
+        # Step 1: Perception
+        scene = await get_scene()
 
+        # Step 2: Reasoning + Tavily
         agent = ReasoningAgent()
-        plan = await agent.reason(command, MOCK_SCENE, broadcast)
+        plan = await agent.reason(command, scene, broadcast)
 
+        # Step 3: Execute or await approval
         if not plan.requires_approval:
             planner = ActionPlanner()
             waypoints = planner.plan_to_waypoints(plan)
@@ -134,7 +189,10 @@ async def run_pipeline(command: str):
         else:
             pending_approval = plan
     except Exception as e:
-        await broadcast({"type": "error", "data": {"message": str(e), "recoverable": True}})
+        await broadcast({
+            "type": "error",
+            "data": {"message": str(e), "recoverable": True},
+        })
 
 
 async def approve_pending(action_id: str):
@@ -142,6 +200,7 @@ async def approve_pending(action_id: str):
     if pending_approval and pending_approval.action_id == action_id:
         from agents.planner import ActionPlanner
         from agents.executor import get_executor
+
         planner = ActionPlanner()
         waypoints = planner.plan_to_waypoints(pending_approval)
         executor = get_executor()
@@ -152,7 +211,10 @@ async def approve_pending(action_id: str):
 async def reject_pending(action_id: str):
     global pending_approval
     pending_approval = None
-    await broadcast({"type": "error", "data": {"message": "Action rejected by user.", "recoverable": True}})
+    await broadcast({
+        "type": "error",
+        "data": {"message": "Action rejected by user.", "recoverable": True},
+    })
 
 
 async def run_security_eval_ws():

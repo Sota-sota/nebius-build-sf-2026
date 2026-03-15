@@ -29,6 +29,24 @@
   --semantic-low: #3388ff;
   --semantic-info: #3b82f6;
   --font-mono: 'SF Mono', 'Monaco', 'Cascadia Code', 'Fira Code', 'DejaVu Sans Mono', 'Liberation Mono', monospace;
+
+  /* SPECS.md risk level colors */
+  --risk-low: hsl(142 76% 36%);
+  --risk-medium: hsl(38 92% 50%);
+  --risk-high: hsl(0 84% 60%);
+
+  /* SPECS.md agent step colors */
+  --step-perceiving: hsl(221 83% 53%);
+  --step-searching: hsl(25 95% 53%);
+  --step-planning: hsl(262 83% 58%);
+  --step-executing: hsl(142 76% 36%);
+  --step-awaiting: hsl(38 92% 50%);
+
+  /* Toloka / sponsor accents */
+  --accent-green: #22c55e;
+  --accent-red: #ef4444;
+  --accent-blue: #3b82f6;
+  --accent-orange: #f97316;
 }
 
 @layer base {

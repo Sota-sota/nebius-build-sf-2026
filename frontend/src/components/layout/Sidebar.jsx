@@ -1,4 +1,4 @@
-import { LayoutDashboard, ScrollText, Settings, Bot, Cpu } from "lucide-react"
+import { LayoutDashboard, ScrollText, Settings, Bot, Cpu, Search } from "lucide-react"
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", active: true },
@@ -29,9 +29,16 @@ export function Sidebar() {
         </button>
       ))}
 
-      <div className="mt-auto flex flex-col items-center gap-0.5">
-        <Cpu className="h-3 w-3" style={{ color: "var(--text-faint)" }} />
-        <span className="text-[8px]" style={{ color: "var(--text-faint)" }}>Nebius</span>
+      {/* Sponsor badges */}
+      <div className="mt-auto flex flex-col items-center gap-1.5 pb-1">
+        <div className="flex flex-col items-center gap-0.5" title="Powered by Nebius Token Factory">
+          <Cpu className="h-3 w-3" style={{ color: "var(--text-faint)" }} />
+          <span className="text-[7px] leading-tight text-center" style={{ color: "var(--text-faint)" }}>Nebius</span>
+        </div>
+        <div className="flex flex-col items-center gap-0.5" title="Search by Tavily">
+          <Search className="h-3 w-3" style={{ color: "var(--semantic-high)" }} />
+          <span className="text-[7px] leading-tight text-center" style={{ color: "var(--text-faint)" }}>Tavily</span>
+        </div>
       </div>
     </aside>
   )
