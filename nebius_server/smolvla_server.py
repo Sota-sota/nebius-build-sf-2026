@@ -149,12 +149,15 @@ def predict(req: PredictRequest):
         "observation.state": torch.tensor(req.joint_state, dtype=torch.float32),
     }
 
-    # Camera image
+    # Camera image — model requires at least one image key
+    # Model was trained with observation.images.up and observation.images.side
     if req.image_b64 is not None:
         image = _decode_image(req.image_b64)  # (3, H, W) float32 [0,1]
-        observation["observation.images.top"] = image
-    # If no image: the preprocessor's ComplementaryDataProcessorStep will fill
-    # missing images with zeros (smolvla_base handles this via empty_cameras config)
+    else:
+        # Dummy black image fallback when no camera available
+        image = torch.zeros(3, IMAGE_SIZE, IMAGE_SIZE, dtype=torch.float32)
+    observation["observation.images.up"] = image
+    observation["observation.images.side"] = image
 
     complementary = {"task": req.instruction}
 

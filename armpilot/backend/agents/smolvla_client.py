@@ -32,7 +32,7 @@ def _capture_frame_b64() -> str | None:
 
 class SmolVLAClient:
     def __init__(self, endpoint_url: str | None = None):
-        self.endpoint_url = (endpoint_url or SMOLVLA_ENDPOINT_URL).rstrip("/")
+        self.endpoint_url = (SMOLVLA_ENDPOINT_URL if endpoint_url is None else endpoint_url).rstrip("/")
 
     async def predict(
         self,
