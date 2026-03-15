@@ -68,7 +68,7 @@ def test_predict_returns_valid_schema(dummy_server_url):
     }
     r = httpx.post(f"{dummy_server_url}/predict", json=payload)
     assert r.status_code == 200
-    chunk = r.json()["action_chunk"]
+    chunk = r.json()["actions"]
     assert len(chunk) == 10
     assert all(len(step) == 6 for step in chunk)
 
@@ -83,7 +83,7 @@ def test_predict_chunk_within_limits(dummy_server_url):
         "image_b64": None,
     }
     r = httpx.post(f"{dummy_server_url}/predict", json=payload)
-    chunk = r.json()["action_chunk"]
+    chunk = r.json()["actions"]
     for step in chunk:
         for j, v in enumerate(step):
             assert MINS[j] <= v <= MAXS[j], f"joint {j} value {v} out of limits"
@@ -113,8 +113,8 @@ def test_predict_grasp_instruction_closes_gripper(dummy_server_url):
         "joint_state": [0.0] * 6,
         "image_b64": None,
     }
-    grasp_chunk = httpx.post(f"{dummy_server_url}/predict", json=payload_grasp).json()["action_chunk"]
-    release_chunk = httpx.post(f"{dummy_server_url}/predict", json=payload_release).json()["action_chunk"]
+    grasp_chunk = httpx.post(f"{dummy_server_url}/predict", json=payload_grasp).json()["actions"]
+    release_chunk = httpx.post(f"{dummy_server_url}/predict", json=payload_release).json()["actions"]
 
     # grasp: gripper > 0.3、release: gripper < 0.3
     assert grasp_chunk[-1][5] > 0.3, "grasp should close gripper"

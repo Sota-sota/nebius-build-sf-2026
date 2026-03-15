@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+lerobot[smolvla]
+torch
+torchvision
+pillow
+numpy
+httpx
+python-multipart

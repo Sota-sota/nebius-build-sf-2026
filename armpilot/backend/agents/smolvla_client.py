@@ -65,7 +65,7 @@ class SmolVLAClient:
                 )
             response.raise_for_status()
             data = response.json()
-            chunk = data["action_chunk"]
+            chunk = data["actions"]
             return clamp_action_chunk(chunk)
         except Exception:
             return None

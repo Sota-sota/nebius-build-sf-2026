@@ -31,7 +31,7 @@ class PredictRequest(BaseModel):
 
 
 class PredictResponse(BaseModel):
-    action_chunk: list[list[float]]
+    actions: list[list[float]]
     model: str = "dummy"
 
 
@@ -79,7 +79,7 @@ def health():
 @app.post("/predict", response_model=PredictResponse)
 def predict(req: PredictRequest):
     chunk = _make_chunk(req.instruction, req.joint_state)
-    return PredictResponse(action_chunk=chunk)
+    return PredictResponse(actions=chunk)
 
 
 if __name__ == "__main__":

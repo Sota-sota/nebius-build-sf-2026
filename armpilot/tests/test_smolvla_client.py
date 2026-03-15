@@ -44,7 +44,7 @@ async def test_predict_returns_action_chunk():
     mock_response = MagicMock()
     mock_response.status_code = 200
     mock_response.json.return_value = {
-        "action_chunk": [[0.1, 0.2, 0.3, 0.4, 0.5, 0.6]] * 10
+        "actions": [[0.1, 0.2, 0.3, 0.4, 0.5, 0.6]] * 10
     }
 
     client = SmolVLAClient(endpoint_url="http://localhost:9999")
@@ -89,7 +89,7 @@ async def test_predict_clamps_chunk():
     mock_response = MagicMock()
     mock_response.status_code = 200
     mock_response.json.return_value = {
-        "action_chunk": [[99.0, 0.0, 0.0, 0.0, 0.0, 99.0]] * 10
+        "actions": [[99.0, 0.0, 0.0, 0.0, 0.0, 99.0]] * 10
     }
 
     client = SmolVLAClient(endpoint_url="http://localhost:9999")
