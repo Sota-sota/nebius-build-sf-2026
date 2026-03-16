@@ -105,6 +105,20 @@ async def main(episode: int):
             },
         })
 
+        # Snap 3D arm to episode start position (matches where the physical arm starts)
+        start_joints = frame_to_joints(frames[0])
+        for _ in range(10):
+            await client.post(f"{BACKEND_URL}/api/broadcast", json={
+                "type": "execution_update",
+                "data": {
+                    "current_step": 0,
+                    "total_steps": len(frames),
+                    "joint_positions": start_joints,
+                    "gripper_state": "open",
+                    "status": "executing",
+                },
+            })
+
         # Run arm replay in thread + stream to frontend concurrently
         loop = asyncio.get_event_loop()
         arm_task = loop.run_in_executor(None, replay_on_arm, episode)
