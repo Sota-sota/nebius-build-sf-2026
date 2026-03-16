@@ -48,8 +48,8 @@ async def test_pipeline_smolvla_path():
 
 
 @pytest.mark.asyncio
-async def test_pipeline_fallback_when_smolvla_none():
-    """SmolVLA が None を返したとき POSITION_MAP フォールバックが動く"""
+async def test_pipeline_smolvla_none_does_not_execute():
+    """SmolVLA が最初から None を返したとき executor は呼ばれない（ループは即終了）"""
     broadcast_calls = []
 
     async def mock_broadcast(event):
@@ -63,15 +63,9 @@ async def test_pipeline_fallback_when_smolvla_none():
         mock_exec.execute = AsyncMock()
         mock_get_exec.return_value = mock_exec
 
-        # main.run_pipeline をインポートして実行
         import main as m
-        # broadcast をグローバルにパッチ
         with patch.object(m, "broadcast", mock_broadcast):
             await m.run_pipeline("move to center")
 
-        # フォールバックが動いた → executor.execute が呼ばれた
-        mock_exec.execute.assert_called_once()
-        # waypoints は list で、chunk ではなく POSITION_MAP 由来
-        call_args = mock_exec.execute.call_args[0]
-        waypoints = call_args[0]
-        assert isinstance(waypoints, list)
+        # SmolVLA が None → ループ即終了 → execute は呼ばれない
+        mock_exec.execute.assert_not_called()

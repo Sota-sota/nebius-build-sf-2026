@@ -38,3 +38,5 @@ JOINT_LIMITS = {
 SMOLVLA_ENDPOINT_URL = os.getenv("SMOLVLA_ENDPOINT_URL", "")
 SMOLVLA_TIMEOUT_S    = float(os.getenv("SMOLVLA_TIMEOUT_S", "10"))
 USE_SMOLVLA          = os.getenv("USE_SMOLVLA", "false").lower() == "true"
+SMOLVLA_MAX_CHUNKS   = int(os.getenv("SMOLVLA_MAX_CHUNKS", "20"))   # タスク完了までの最大推論回数
+SMOLVLA_EXEC_STEPS   = int(os.getenv("SMOLVLA_EXEC_STEPS", "4"))    # 1チャンクのうち実際に実行するステップ数

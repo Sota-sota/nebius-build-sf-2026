@@ -198,8 +198,10 @@ async def test_pipeline_smolvla_path_real_http(dummy_server_url, monkeypatch):
         with patch.object(m, "broadcast", mock_broadcast):
             await m.run_pipeline("pick up the red cup")
 
-    # action chunk (10ステップ) が executor に渡ったことを確認
-    assert len(executed_waypoints) == 10
+    # EXEC_STEPS × MAX_CHUNKS ステップが executor に渡ったことを確認
+    import config
+    expected = config.SMOLVLA_EXEC_STEPS * config.SMOLVLA_MAX_CHUNKS
+    assert len(executed_waypoints) == expected
     assert all(len(wp) == 6 for wp in executed_waypoints)
     # SmolVLA ステップが broadcast されたことを確認
     types = [e["type"] for e in broadcast_events]

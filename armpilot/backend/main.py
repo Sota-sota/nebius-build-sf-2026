@@ -85,12 +85,37 @@ async def ws_endpoint(websocket: WebSocket):
         clients.discard(websocket)
 
 
+async def _run_smolvla_loop(instruction: str, executor, plan, broadcast_fn):
+    """Receding-horizon control: MAX_CHUNKS 回まで推論→実行を繰り返す。"""
+    from agents.smolvla_client import SmolVLAClient
+    import config
+
+    smolvla = SmolVLAClient()
+    current_joints = list(getattr(executor, "current", [0.0] * 6))
+
+    for chunk_idx in range(config.SMOLVLA_MAX_CHUNKS):
+        chunk = await smolvla.predict(instruction, current_joints, None)
+        if chunk is None:
+            break
+
+        await broadcast_fn({
+            "type": "reasoning_step",
+            "data": {
+                "step": "smolvla_loop",
+                "detail": f"SmolVLA chunk {chunk_idx + 1}/{config.SMOLVLA_MAX_CHUNKS} ({config.SMOLVLA_EXEC_STEPS} steps)",
+            },
+        })
+
+        exec_steps = chunk[:config.SMOLVLA_EXEC_STEPS]
+        await executor.execute(exec_steps, plan, broadcast_fn)
+        current_joints = list(executor.current)
+
+
 async def run_pipeline(command: str):
     global pending_approval
     from agents.reasoning import ReasoningAgent
     from agents.planner import ActionPlanner, actions_to_instruction
     from agents.executor import get_executor
-    from agents.smolvla_client import SmolVLAClient
     import config
 
     try:
@@ -100,16 +125,11 @@ async def run_pipeline(command: str):
         if not plan.requires_approval:
             executor = get_executor()
 
-            # SmolVLA パス
+            # SmolVLA パス: タスク完了までループ推論
             if config.USE_SMOLVLA:
                 instruction = actions_to_instruction(plan)
-                smolvla = SmolVLAClient()
-                current_joints = getattr(executor, "current", [0.0] * 6)
-                chunk = await smolvla.predict(instruction, current_joints, None)
-                if chunk is not None:
-                    await broadcast({"type": "reasoning_step", "data": {"step": "smolvla", "detail": f"SmolVLA chunk: {len(chunk)} steps"}})
-                    await executor.execute(chunk, plan, broadcast)
-                    return
+                await _run_smolvla_loop(instruction, executor, plan, broadcast)
+                return
 
             # フォールバック: POSITION_MAP ルックアップ
             planner = ActionPlanner()
@@ -126,20 +146,15 @@ async def approve_pending(action_id: str):
     if pending_approval and pending_approval.action_id == action_id:
         from agents.planner import ActionPlanner, actions_to_instruction
         from agents.executor import get_executor
-        from agents.smolvla_client import SmolVLAClient
         import config
 
         executor = get_executor()
 
         if config.USE_SMOLVLA:
             instruction = actions_to_instruction(pending_approval)
-            smolvla = SmolVLAClient()
-            current_joints = getattr(executor, "current", [0.0] * 6)
-            chunk = await smolvla.predict(instruction, current_joints, None)
-            if chunk is not None:
-                await executor.execute(chunk, pending_approval, broadcast)
-                pending_approval = None
-                return
+            await _run_smolvla_loop(instruction, executor, pending_approval, broadcast)
+            pending_approval = None
+            return
 
         planner = ActionPlanner()
         waypoints = planner.plan_to_waypoints(pending_approval)
