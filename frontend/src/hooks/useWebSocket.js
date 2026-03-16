@@ -17,6 +17,7 @@ export function useWebSocket() {
     wsRef.current = ws
 
     ws.onopen = () => {
+      console.log("[WS] connected to", WS_URL)
       setConnected(true)
       reconnectAttempt.current = 0
     }
@@ -24,6 +25,7 @@ export function useWebSocket() {
     ws.onmessage = (e) => {
       try {
         const event = JSON.parse(e.data)
+        console.log("[WS] received:", event.type, event.data)
         handleEvent(event)
       } catch {
         // ignore non-JSON messages
@@ -31,6 +33,7 @@ export function useWebSocket() {
     }
 
     ws.onclose = () => {
+      console.log("[WS] disconnected, reconnecting...")
       setConnected(false)
       const delay =
         RECONNECT_DELAYS[

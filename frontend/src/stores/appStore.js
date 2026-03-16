@@ -122,6 +122,8 @@ export const useAppStore = create((set, get) => ({
           })
         } else if (data.status === "failed") {
           get().setPipelineStatus("error")
+        } else if (data.status === "executing") {
+          get().setPipelineStatus("executing")
         }
         break
 

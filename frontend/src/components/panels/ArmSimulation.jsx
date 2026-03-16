@@ -51,7 +51,7 @@ const MOCK_OBJECTS = [
 ]
 
 function lerp(a, b, t) {
-  return a + (b - a) * t * 0.08
+  return a + (b - a) * Math.min(1, t * 10)
 }
 
 // STS3215 servo motor box — the blue rectangular servo visible at each joint
@@ -370,7 +370,7 @@ function WorkspaceTable() {
 
 export function ArmSimulation() {
   return (
-    <div className="h-full w-full overflow-hidden">
+    <div style={{ position: "absolute", inset: 0 }}>
       <Canvas
         camera={{ position: [3, 2.5, 4], fov: 45 }}
         dpr={[1, 2]}

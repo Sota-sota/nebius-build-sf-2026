@@ -93,6 +93,13 @@ def status():
     }
 
 
+@app.post("/api/broadcast")
+async def broadcast_event(event: dict):
+    """Relay an event to all connected WebSocket clients."""
+    await broadcast(event)
+    return {"ok": True}
+
+
 @app.get("/api/homer")
 async def homer_dataset():
     """Return Toloka HomER dataset metadata."""
