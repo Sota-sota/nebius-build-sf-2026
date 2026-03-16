@@ -1,5 +1,71 @@
 # ArmPilot — Complete Technical Specification
 
+---
+
+## ⚠️ Agent Cautions (2026-03-15 更新)
+
+### SmolVLA は Receding Horizon Loop で動く
+
+`USE_SMOLVLA=true` のとき、`run_pipeline()` は**1回の推論で終わらない**。
+
+```
+for chunk_idx in range(MAX_CHUNKS=20):
+    chunk = smolvla.predict(...)     # 推論 (10ステップ)
+    executor.execute(chunk[:4])      # 先頭4ステップだけ実行
+    # → 再推論
+```
+
+これによって以下の変化がある：
+
+#### WebSocket イベントの変化
+
+| イベント | 旧 | 新 |
+|---------|-----|-----|
+| `execution_update {status: "completed"}` | タスク完了時に**1回** | チャンクごとに**最大20回**発火 |
+| `reasoning_step {step: "smolvla_loop"}` | 存在しない | チャンクごとに発火（新イベント） |
+| `execution_update {total_steps}` | 10 | **4**（EXEC_STEPS） |
+
+#### フロントエンド実装の注意点
+
+- **`status: "completed"` でタスク終了と判定しないこと**。`completed` はチャンクの終了であり、タスク全体の終了ではない。
+- タスク全体の終了は `smolvla_loop` イベントが止まった後に来る最後の `completed` か、またはパイプラインが `error` を返したとき。
+- プログレスバーを作る場合は `smolvla_loop` の `detail` フィールドに `chunk X/20` が入っているので、そこからパース可能。
+
+#### 新イベント: `smolvla_loop`
+
+```json
+{
+    "type": "reasoning_step",
+    "data": {
+        "step": "smolvla_loop",
+        "detail": "SmolVLA chunk 3/20 (4 steps)"
+    },
+    "timestamp": "..."
+}
+```
+
+### Nebius VM の起動が必要
+
+SmolVLA サーバーは Nebius GPU VM 上で動く。**デモ前に必ず起動すること。**
+
+```bash
+# VM起動（停止中の場合）
+nebius compute instance start --id computeinstance-e00fjm2xdydk0a9evm
+
+# サーバー起動
+ssh ubuntu@89.169.122.200 "source /home/ubuntu/smolvla_env/bin/activate && cd /home/ubuntu/smolvla_server && nohup uvicorn smolvla_server:app --host 0.0.0.0 --port 8001 > /home/ubuntu/server.log 2>&1 &"
+
+# ヘルス確認（モデルロードに約15秒かかる）
+curl http://89.169.122.200:8001/health
+# → {"status": "ok", "model_id": "...", "device": "cuda"}
+```
+
+- VM停止するとIPが変わる可能性あり → `.env` の `SMOLVLA_ENDPOINT_URL` を確認
+- SmolVLAが落ちている場合 → `predict()` は `None` を返し、ループは即終了（executor は呼ばれない）
+- `USE_SMOLVLA=false` にすれば POSITION_MAP フォールバックで動作確認可能
+
+---
+
 ## Project Summary
 
 ArmPilot is a voice-controlled SO101 robotic arm system powered by an LLM-based agentic pipeline. The user speaks a natural language command, a reasoning agent uses Tavily web search to ground its decisions in real-time knowledge, plans a sequence of physical actions, and executes them on the SO101 arm — all while streaming every decision to a live Mission Control dashboard.
