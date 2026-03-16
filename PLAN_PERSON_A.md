@@ -66,18 +66,18 @@ Voice
 - [x] `nebius_server/test_smolvla_server.py` を作成 (16/16 passed)
 - [x] `nebius_server/requirements.txt` を作成
 - [x] `nebius_server/deploy.sh` を作成 (scp + nohup起動)
-- [ ] Nebius Compute Cloud VM を起動
-  - OS: Ubuntu 22.04 + CUDA 12.x
-  - GPU: L4 (24GB VRAM) × 1
-- [ ] VM に SSH接続 → `smolvla_server.py` をデプロイ
-  - `~/.cache/huggingface` をローカルから `scp` でコピー（ダウンロード時間短縮）
-- [ ] `GET /health` で疎通確認 → `SMOLVLA_ENDPOINT_URL` を `.env` に記入
-- [ ] `POST /predict` でサンプル入力 → action chunk が返ることを確認
+- [x] Nebius Compute Cloud VM を起動
+  - OS: Ubuntu 24.04 + CUDA 12.8
+  - GPU: L40S (48GB VRAM) × 1, instance: `computeinstance-e00fjm2xdydk0a9evm`
+- [x] VM に SSH接続 → `smolvla_server.py` をデプロイ
+- [x] `GET /health` で疎通確認 → `SMOLVLA_ENDPOINT_URL=http://89.169.122.200:8001` を `.env` に記入
+- [x] `POST /predict` でサンプル入力 → action chunk が返ることを確認
 
 ### Track 2: ローカルバックエンド変更
 
 - [x] `backend/config.py` に追記
   - `SMOLVLA_ENDPOINT_URL`, `SMOLVLA_TIMEOUT_S`, `USE_SMOLVLA`
+  - `SMOLVLA_MAX_CHUNKS=20`, `SMOLVLA_EXEC_STEPS=4` (Receding Horizon用)
 - [x] `backend/agents/planner.py` に `actions_to_instruction(plan)` を追加
   - ActionPlan.actions → 自然言語instruction text に変換する純粋関数
 - [x] `backend/agents/smolvla_client.py` を新規作成
@@ -86,9 +86,11 @@ Voice
   - カメラキャプチャ (OpenCV, 256×256 JPEG → base64) を内包
   - 失敗・タイムアウト時は `None` を返す（フォールバック用）
   - action chunk を `JOINT_LIMITS` でclamp
-- [x] `backend/main.py` の `run_pipeline()` を変更
-  - `USE_SMOLVLA=True` かつ SmolVLA成功 → action chunk をそのままexecutorへ
-  - SmolVLA失敗・未設定 → 既存の `ActionPlanner().plan_to_waypoints(plan)` にフォールバック
+- [x] `backend/main.py` に `_run_smolvla_loop()` を追加（Receding Horizon Control）
+  - MAX_CHUNKS回まで推論→実行を繰り返す
+  - 1チャンクのうちEXEC_STEPSステップだけ実行して再推論
+  - predictがNoneを返したら即停止
+  - `run_pipeline()` / `approve_pending()` の両方で共通ループを使用
 
 ### 統合テスト
 
@@ -96,9 +98,9 @@ Voice
 - [x] `scripts/dummy_smolvla_server.py` 作成 (Track 1 VM なし HTTP 疎通)
 - [x] `tests/test_smolvla_integration.py` 作成 (8テスト、real TCP通信) — `pytest -m integration` でパス
 - [x] Dummy サーバー経由で全 HTTP パス確認 (SmolVLAClient → chunk → pipeline)
-- [ ] SmolVLAサーバーへの実疎通確認 (curl /predict) ← Track 1 VM 起動後
-- [ ] SO101実機でaction chunk実行確認
-- [ ] **"pick up the red cup" エンドツーエンド (SmolVLAパス) 確認**
+- [x] SmolVLAサーバーへの実疎通確認 (curl /predict)
+- [x] SO101実機でaction chunk実行確認
+- [x] **"pick up the red cup" エンドツーエンド (SmolVLAパス) 確認** — chunk 20/20 完走
 
 ---
 
